@@ -1,3 +1,4 @@
 *.xlsx
 historico-preditivo-CHAVE-NAO-COMPARTILHAR.txt
 __pycache__/
+.lib/
