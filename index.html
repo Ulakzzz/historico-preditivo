@@ -1488,7 +1488,24 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       });
     });
   }
-  function onDecifrar(buf) { var u = new Uint8Array(buf); return crypto.subtle.decrypt({ name: 'AES-GCM', iv: u.slice(0, 12) }, ON.chave, u.slice(12)); }
+  function onDecifrarSim(u) { return crypto.subtle.decrypt({ name: 'AES-GCM', iv: u.slice(0, 12) }, ON.chave, u.slice(12)); }
+  // chave privada RSA (cifrada com a chave de dados) para as planilhas publicadas pelas rotinas automáticas
+  function onPrivada() {
+    if (!ON.priv) ON.priv = fetch(ONP + '/privada.enc', { cache: 'no-cache' }).then(function (r) { if (!r.ok) throw new Error('privada.enc ' + r.status); return r.arrayBuffer(); })
+      .then(function (b) { return onDecifrarSim(new Uint8Array(b)); })
+      .then(function (der) { return crypto.subtle.importKey('pkcs8', der, { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['decrypt']); });
+    return ON.priv;
+  }
+  function onDecifrar(buf) {
+    var u = new Uint8Array(buf);
+    if (u[0] === 72 && u[1] === 80 && u[2] === 82 && u[3] === 49) {   // 'HPR1'
+      var n = (u[4] << 8) | u[5], w = u.slice(6, 6 + n), iv = u.slice(6 + n, 18 + n), ct = u.slice(18 + n);
+      return onPrivada().then(function (pk) { return crypto.subtle.decrypt({ name: 'RSA-OAEP' }, pk, w); })
+        .then(function (k) { return crypto.subtle.importKey('raw', k, 'AES-GCM', false, ['decrypt']); })
+        .then(function (fk) { return crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, fk, ct); });
+    }
+    return onDecifrarSim(u);
+  }
   function carregarOnline() {
     var lst = (ON.manifest.arquivos || []), cfg = null, seq = Promise.resolve(), n = 0;
     fontes = [];

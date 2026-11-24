@@ -9,18 +9,27 @@ Formato (o mesmo que a página lê no navegador):
 
 A chave de dados é lida da variável de ambiente HP_CHAVE (base64). Ela nunca é gravada no site.
 
+Planilhas novas (rotinas automáticas, sem segredo nenhum):
+  dados/publica.pem -> chave pública RSA-OAEP (SHA-256)
+  dados/privada.enc -> chave privada correspondente (PKCS8), cifrada com a chave de dados
+  arquivo "HPR1"    -> 'HPR1' + tamanho (2 bytes) + chave do arquivo cifrada com RSA + iv (12) + AES-GCM
+  A página abre a chave privada com a senha e então lê esses arquivos.
+
 Uso:
   python ferramentas/cifrar.py init  --senha "SENHA"        # cria chave.json e imprime HP_CHAVE (guarde!)
   python ferramentas/cifrar.py add   planilha.xlsx [...]    # cifra planilhas de dados (HP_CHAVE)
   python ferramentas/cifrar.py config Padronizacao.xlsx     # cifra a planilha de padronização (HP_CHAVE)
   python ferramentas/cifrar.py senha --nova "NOVA"          # troca a senha sem recifrar os dados (HP_CHAVE)
+  python ferramentas/cifrar.py chaves-rsa                   # cria publica.pem/privada.enc (HP_CHAVE, uma vez)
+  python ferramentas/cifrar.py add-publico planilha.xlsx    # cifra com a chave pública (NÃO precisa de HP_CHAVE)
   python ferramentas/cifrar.py manifest                     # só regenera o manifest.json
 """
 import argparse, base64, datetime, hashlib, json, os, sys
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DADOS = os.path.join(RAIZ, 'dados')
@@ -64,11 +73,42 @@ def cifrar(caminho, destino_dir):
     print('cifrado:', os.path.relpath(destino, RAIZ))
 
 
+OAEP = padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
+
+
+def chaves_rsa():
+    raw = chave_dados()
+    if os.path.exists(os.path.join(DADOS, 'publica.pem')):
+        sys.exit('dados/publica.pem já existe.')
+    priv = rsa.generate_private_key(public_exponent=65537, key_size=3072)
+    der = priv.private_bytes(serialization.Encoding.DER, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
+    iv = os.urandom(12)
+    with open(os.path.join(DADOS, 'privada.enc'), 'wb') as f:
+        f.write(iv + AESGCM(raw).encrypt(iv, der, None))
+    with open(os.path.join(DADOS, 'publica.pem'), 'wb') as f:
+        f.write(priv.public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo))
+    print('criados: dados/publica.pem e dados/privada.enc')
+
+
+def cifrar_publico(caminho, destino_dir):
+    with open(os.path.join(DADOS, 'publica.pem'), 'rb') as f:
+        pub = serialization.load_pem_public_key(f.read())
+    with open(caminho, 'rb') as f:
+        dados = f.read()
+    k, iv = os.urandom(32), os.urandom(12)
+    wrapped = pub.encrypt(k, OAEP)
+    os.makedirs(destino_dir, exist_ok=True)
+    destino = os.path.join(destino_dir, os.path.basename(caminho) + '.enc')
+    with open(destino, 'wb') as f:
+        f.write(b'HPR1' + len(wrapped).to_bytes(2, 'big') + wrapped + iv + AESGCM(k).encrypt(iv, dados, None))
+    print('cifrado (chave pública):', os.path.relpath(destino, RAIZ))
+
+
 def manifest():
     arquivos = []
     for pasta, _, nomes in os.walk(DADOS):
         for n in sorted(nomes):
-            if not n.endswith('.enc'):
+            if not n.endswith('.enc') or (pasta == DADOS and n == 'privada.enc'):
                 continue
             p = os.path.join(pasta, n)
             rel = os.path.relpath(p, DADOS).replace(os.sep, '/')
@@ -89,6 +129,8 @@ def main():
     p = sub.add_parser('add'); p.add_argument('arquivos', nargs='+')
     p = sub.add_parser('config'); p.add_argument('arquivo')
     p = sub.add_parser('senha'); p.add_argument('--nova', required=True)
+    sub.add_parser('chaves-rsa')
+    p = sub.add_parser('add-publico'); p.add_argument('arquivos', nargs='+')
     sub.add_parser('manifest')
     a = ap.parse_args()
     if a.cmd == 'init':
@@ -103,6 +145,12 @@ def main():
         manifest()
     elif a.cmd == 'config':
         cifrar(a.arquivo, os.path.join(DADOS, 'config'))
+        manifest()
+    elif a.cmd == 'chaves-rsa':
+        chaves_rsa()
+    elif a.cmd == 'add-publico':
+        for x in a.arquivos:
+            cifrar_publico(x, DADOS)
         manifest()
     elif a.cmd == 'senha':
         gravar_chave(chave_dados(), a.nova)
