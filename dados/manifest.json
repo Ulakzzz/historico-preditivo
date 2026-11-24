@@ -1,0 +1,23 @@
+{
+ "atualizado": "2026-11-24T18:00:51+00:00",
+ "arquivos": [
+  {
+   "nome": "Padronizacao.xlsx",
+   "arquivo": "config/Padronizacao.xlsx.enc",
+   "tipo": "config",
+   "sha": "3c835e785a23aff4"
+  },
+  {
+   "nome": "Consolidado_preditiva_2025-04-01_a_2026-11-10.xlsx",
+   "arquivo": "Consolidado_preditiva_2025-04-01_a_2026-11-10.xlsx.enc",
+   "tipo": "dados",
+   "sha": "1698fe8a1c973903"
+  },
+  {
+   "nome": "Relatorios_extraidos_2026-11-24_1725.xlsx",
+   "arquivo": "Relatorios_extraidos_2026-11-24_1725.xlsx.enc",
+   "tipo": "dados",
+   "sha": "f70cf914d2124d6d"
+  }
+ ]
+}
