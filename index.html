@@ -89,6 +89,12 @@ main{padding:22px 26px 60px;flex:1}
 .badge::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c)}
 .badge.lg{font-size:14px;padding:6px 14px 6px 11px}
 .badge.lg::before{width:10px;height:10px}
+/* códigos da planilha de controle: cor e texto vêm de E.CODIGOS (data-cod + --c/--t) */
+.badge.cod{background:var(--c);color:var(--t);border-color:color-mix(in srgb,var(--c) 70%,#000);padding:3px 10px}
+.badge.cod::before{display:none}
+.badge.cod.lg{padding:6px 14px}
+.dot[data-cod],.strip i[data-cod],.dist i[data-cod]{background:var(--c)}
+.dot[data-cod="X"],.dot[data-cod="R"],.strip i[data-cod="X"],.strip i[data-cod="R"],.hm .c[data-cod="X"],.hm .c[data-cod="R"],.legend [data-cod="X"] i,.legend [data-cod="R"] i,.ev[data-cod="X"] .bar,.ev[data-cod="R"] .bar{box-shadow:inset 0 0 0 1px var(--line-2)}
 
 /* ---------- cards ---------- */
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
@@ -903,7 +909,6 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   var E = window.Engine, S = E.STATUS, CFG = window.CONFIG;
   var $ = function (s) { return document.querySelector(s); };
   var MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-  var ORDEM_ST = ['ALARME', 'ALERTA', 'PRE', 'NORMAL', 'NI', 'NC'];
 
   var M = null;          // modelo construído
   var fontes = [];       // [{nome, rows, origem, modificado}]
@@ -917,7 +922,27 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function fmtMes(ym) { if (!ym) return '—'; var p = ym.split('-'); return MES[+p[1] - 1] + '/' + p[0].slice(2); }
   function fmtMesLongo(ym) { var p = ym.split('-'); return ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'][+p[1] - 1] + ' de ' + p[0]; }
   function fmtData(d, prec) { if (!d) return 'Sem data'; var p = d.split('-'); return prec === 'd' ? p[2] + '/' + p[1] + '/' + p[0] : fmtMes(d.slice(0, 7)); }
-  function badge(st, extra, cls) { return '<span class="badge st-' + st + (cls ? ' ' + cls : '') + '">' + esc(S[st].label + (extra ? ' · ' + extra : '')) + '</span>'; }
+  // ---- códigos da planilha de controle (E.CODIGOS): exibição. Severidade e ordenação continuam por STATUS.
+  var ORDEM_COD = ['4', '3', '2', '1', '5', '6', '7', '8', '9', '10', '11', '12', '13', 'X', 'R', ''];
+  function codInfo(cod) { return E.CODIGOS[cod] || E.CODIGOS['']; }
+  function codRot(cod) { cod = E.CODIGOS[cod] ? cod : ''; return (cod ? cod + ' · ' : '') + codInfo(cod).nome; }
+  // atributos que pintam um elemento com a cor do código (variáveis --c/--t usadas pelo CSS)
+  function codAttr(cod) { var c = codInfo(cod); return ' data-cod="' + esc(E.CODIGOS[cod] ? cod : '') + '" style="--c:' + c.cor + ';--t:' + c.texto + '"'; }
+  function badge(cod, extra, cls) {
+    // o detalhe só aparece quando acrescenta algo ao nome (5–13, X e R já dizem o motivo)
+    var mostra = extra && extra !== codInfo(cod).nome && !/^(?:[5-9]|1[0-3]|X|R)$/.test(cod);
+    return '<span class="badge cod' + (cls ? ' ' + cls : '') + '"' + codAttr(cod) + '>' + esc(codRot(cod) + (mostra ? ' · ' + extra : '')) + '</span>';
+  }
+  function legendaCod(cods) { return ORDEM_COD.filter(function (c) { return cods[c]; }).map(function (c) { return '<span' + codAttr(c) + '><i></i>' + esc(codRot(c)) + '</span>'; }).join(''); }
+  // código da condição atual (mesma regra de q.atual no motor: pior avaliado do último mês; senão o NI mais recente)
+  function codAtual(q) {
+    if (q.atual === 'NC') return '';
+    for (var i = 0; i < q.ev.length; i++) {
+      var e = q.ev[i];
+      if (q.atual === 'NI' ? e.st === 'NI' : (e.st === q.atual && e.data && e.data.slice(0, 7) === q.ultimaInspecao)) return e.cod || '';
+    }
+    return '';
+  }
   function addMes(ym, n) { var y = +ym.slice(0, 4), m = +ym.slice(5, 7) - 1 + n; y += Math.floor(m / 12); m = ((m % 12) + 12) % 12; return y + '-' + (m < 9 ? '0' : '') + (m + 1); }
   function hojeYM() { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() < 9 ? '0' : '') + (d.getMonth() + 1); }
   function ls(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem('hp.' + k)); localStorage.setItem('hp.' + k, JSON.stringify(v)); } catch (e) { return null; } }
@@ -1298,15 +1323,15 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function prepararModelo() {
     var maxYM = '0000-00', lim = addMes(hojeYM(), 1);
     M.equipamentos.forEach(function (q) {
-      var meses = {};
+      var meses = {}, mesesCod = {};
       q.ev.forEach(function (e) {
         if (!e.data) return;
         var k = e.data.slice(0, 7); if (k > lim) return;
         if (k > maxYM && e.fonte === 'relatorio') maxYM = k;
         var cur = meses[k];
-        if (!cur || S[e.st].sev > S[cur].sev) meses[k] = e.st;
+        if (!cur || S[e.st].sev > S[cur].sev) { meses[k] = e.st; mesesCod[k] = e.cod || ''; }
       });
-      q.meses = meses;
+      q.meses = meses; q.mesesCod = mesesCod; q.atualCod = codAtual(q);
       q.notas = {}; q.ev.forEach(function (e) { if (e.nota) e.nota.split(/[\s,;/]+/).forEach(function (n) { if (/^\d{6,}$/.test(n)) q.notas[n] = 1; }); });
       q.reincDesde = q.ev.map(function (e) { return e.reinc; }).filter(Boolean).sort()[0] || '';
       q.mesesAnom = Object.keys(meses).filter(function (k) { return S[meses[k]].sev >= 2; }).length;
@@ -1328,8 +1353,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     montarAreas();
     var t = contar(function (q) { return q.tecnicas; });
     opcoes($('#fTec'), E.TECNICAS.filter(function (k) { return t[k]; }).map(function (k) { return [k, k + ' (' + t[k] + ')']; }), 'Todas as técnicas');
-    var s = contar(function (q) { return q.atual; });
-    opcoes($('#fSt'), ORDEM_ST.filter(function (k) { return s[k]; }).map(function (k) { return [k, S[k].label + ' (' + s[k] + ')']; }), 'Qualquer condição atual');
+    var s = contar(function (q) { return q.atualCod; });
+    opcoes($('#fSt'), ORDEM_COD.filter(function (k) { return s[k]; }).map(function (k) { return [k || '-', codRot(k) + ' (' + s[k] + ')']; }), 'Qualquer condição atual');
     montarUsinas();
   }
   function montarAreas() {
@@ -1348,7 +1373,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       if (un && e.unidade !== un) return false;
       if (ar && e.area !== ar) return false;
       if (tc && e.tecnicas.indexOf(tc) < 0) return false;
-      if (st && e.atual !== st) return false;
+      if (st && e.atualCod !== (st === '-' ? '' : st)) return false;
       for (var i = 0; i < toks.length; i++) if (e.busca.indexOf(toks[i]) < 0 && (!tk2[i] || e.busca.indexOf(tk2[i]) < 0)) return false;
       return true;
     });
@@ -1366,14 +1391,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   function stripHTML(q) {
     var fim = M.ultimoMes, h = '';
-    for (var i = 11; i >= 0; i--) { var k = addMes(fim, -i), s = q.meses[k]; h += '<i' + (s ? ' class="st-' + s + '"' : '') + '></i>'; }
+    for (var i = 11; i >= 0; i--) { var k = addMes(fim, -i), s = q.meses[k]; h += '<i' + (s ? ' class="st-' + s + '"' + codAttr(q.mesesCod[k]) : '') + '></i>'; }
     return '<span class="strip" title="Últimos 12 meses">' + h + '</span>';
   }
   function renderLista() {
     var el = $('#list'), html = '';
     filtrados.slice(0, limite).forEach(function (q) {
       html += '<div class="item' + (selecionado === q ? ' sel' : '') + '" data-k="' + esc(q.key) + '">' +
-        '<span class="dot st-' + q.atual + '" title="' + esc(S[q.atual].label) + '"></span>' +
+        '<span class="dot st-' + q.atual + '"' + codAttr(q.atualCod) + ' title="' + esc(codRot(q.atualCod)) + '"></span>' +
         '<div style="min-width:0"><div class="nm">' + esc(q.titulo) + '</div><div class="sub">' + esc([q.unidade !== 'Não identificada' ? q.unidade : '', q.area !== 'Não identificada' ? q.area : '', q.loc && !q.generico ? q.loc : ''].filter(Boolean).join(' · ') || '—') + '</div></div>' +
         stripHTML(q) + '</div>';
     });
@@ -1422,7 +1447,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     }
     function linhas(lista, dir) {
       dir = dir || function (q) { return fmtMes(q.ultimaInspecao); };
-      return lista.map(function (q) { return '<div class="row" data-k="' + esc(q.key) + '"><span class="dot st-' + q.atual + '"></span><span class="nm">' + esc(q.titulo) + '</span><span class="num" style="font-size:12px;color:var(--ink-3)">' + esc(dir(q)) + '</span></div>'; }).join('') || '<div style="color:var(--ink-3);font-size:13px">Nenhum.</div>';
+      return lista.map(function (q) { return '<div class="row" data-k="' + esc(q.key) + '"><span class="dot st-' + q.atual + '"' + codAttr(q.atualCod) + ' title="' + esc(codRot(q.atualCod)) + '"></span><span class="nm">' + esc(q.titulo) + '</span><span class="num" style="font-size:12px;color:var(--ink-3)">' + esc(dir(q)) + '</span></div>'; }).join('') || '<div style="color:var(--ink-3);font-size:13px">Nenhum.</div>';
     }
     var un = $('#fUnid').value, ar = $('#fArea').value;
     var base = M.equipamentos.filter(function (q) { return (!un || q.unidade === un) && (!ar || q.area === ar); });
@@ -1459,23 +1484,23 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     main.innerHTML = '<div class="empty" style="max-width:1080px">' + band + grade +
       (rec.length && !un ? '<div class="card mini reveal" style="--i:2"><h3>Vistos recentemente</h3>' + linhas(rec) + '</div>' : '') +
       '<div class="grid2">' +
-      '<div class="card mini reveal" style="--i:3"><h3>Em Alarme nas inspeções recentes (' + alarme.length + ')</h3>' + linhas(alarme.slice(0, 10)) + (alarme.length > 10 ? '<button class="linkbtn" data-f="ALARME">Ver todos</button>' : '') + '</div>' +
-      '<div class="card mini reveal" style="--i:4"><h3>Em Alerta nas inspeções recentes (' + alerta.length + ')</h3>' + linhas(alerta.slice(0, 10)) + (alerta.length > 10 ? '<button class="linkbtn" data-f="ALERTA">Ver todos</button>' : '') + '</div>' +
+      '<div class="card mini reveal" style="--i:3"><h3>Em Alarme nas inspeções recentes (' + alarme.length + ')</h3>' + linhas(alarme.slice(0, 10)) + (alarme.length > 10 ? '<button class="linkbtn" data-f="4">Ver todos</button>' : '') + '</div>' +
+      '<div class="card mini reveal" style="--i:4"><h3>Em Alerta nas inspeções recentes (' + alerta.length + ')</h3>' + linhas(alerta.slice(0, 10)) + (alerta.length > 10 ? '<button class="linkbtn" data-f="3">Ver todos</button>' : '') + '</div>' +
       '</div>' +
-      '<div class="card mini reveal" style="--i:5"><h3>Mais meses com anomalia (Pré-Alerta ou pior)</h3>' + linhas(reinc.slice(0, 10), function (q) { return q.mesesAnom + ' meses'; }) + '</div>' +
-      '<div class="legend">' + ORDEM_ST.map(function (s) { return '<span class="st-' + s + '"><i></i>' + S[s].label + '</span>'; }).join('') + '</div>' +
+      '<div class="card mini reveal" style="--i:5"><h3>Mais meses com anomalia (Pré-alerta ou pior)</h3>' + linhas(reinc.slice(0, 10), function (q) { return q.mesesAnom + ' meses'; }) + '</div>' +
+      '<div class="legend">' + legendaCod(tot.cc) + '</div>' +
       '</div>';
   }
   function contarArea(base, a) { var n = 0; base.forEach(function (q) { if (q.area === a) n++; }); return n; }
   function ordemUnid(a, b) { return a === 'Não identificada' ? 1 : b === 'Não identificada' ? -1 : a.localeCompare(b); }
   function resumo(lista) {
-    var c = {}, ult = '';
-    lista.forEach(function (q) { c[q.atual] = (c[q.atual] || 0) + 1; if (q.ultimaInspecao && q.ultimaInspecao > ult) ult = q.ultimaInspecao; });
-    return { c: c, ultima: ult };
+    var c = {}, cc = {}, ult = '';
+    lista.forEach(function (q) { c[q.atual] = (c[q.atual] || 0) + 1; cc[q.atualCod] = (cc[q.atualCod] || 0) + 1; if (q.ultimaInspecao && q.ultimaInspecao > ult) ult = q.ultimaInspecao; });
+    return { c: c, cc: cc, ultima: ult };
   }
   function cartao(nome, lista, tipo, i, pequeno) {
     var r = resumo(lista), n = lista.length || 1;
-    var dist = ORDEM_ST.filter(function (s) { return r.c[s]; }).map(function (s) { return '<i class="st-' + s + '" style="width:' + (100 * r.c[s] / n).toFixed(2) + '%" title="' + esc(S[s].label) + ': ' + r.c[s] + '"></i>'; }).join('');
+    var dist = ORDEM_COD.filter(function (s) { return r.cc[s]; }).map(function (s) { return '<i data-cod="' + esc(s) + '" style="--c:' + codInfo(s).cor + ';width:' + (100 * r.cc[s] / n).toFixed(2) + '%" title="' + esc(codRot(s)) + ': ' + r.cc[s] + '"></i>'; }).join('');
     var areas = tipo === 'u' ? Object.keys(contar(function (q) { return q.area; }, lista)).length : 0;
     return '<div class="pcard lift reveal' + (pequeno ? ' small' : '') + '" style="--i:' + i + '" data-' + tipo + '="' + esc(nome) + '" tabindex="0">' +
       '<span class="go"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>' +
@@ -1508,10 +1533,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     var h = '';
     h += '<div class="card hero">' +
       '<div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap"><div style="flex:1;min-width:240px"><div style="font-size:12px;color:var(--ink-3);margin-bottom:4px">Ficha do equipamento</div><h1>' + esc(q.nome) + '</h1></div>' +
-      '<div class="stbox" style="text-align:right"><div style="font-size:12px;color:var(--ink-3);margin-bottom:4px">Condição na última inspeção' + (q.ultimaInspecao ? ' (' + fmtMes(q.ultimaInspecao) + ')' : '') + '</div>' + badge(q.atual, '', 'lg') + '</div></div>' +
+      '<div class="stbox" style="text-align:right"><div style="font-size:12px;color:var(--ink-3);margin-bottom:4px">Condição na última inspeção' + (q.ultimaInspecao ? ' (' + fmtMes(q.ultimaInspecao) + ')' : '') + '</div>' + badge(q.atualCod, '', 'lg') + '</div></div>' +
       '<div class="meta">' + (q.loc ? '<span>Local de instalação: <b>' + esc(q.loc) + '</b></span>' : '') + '<span>Unidade: <b>' + esc(q.unidade) + '</b></span><span>Área: <b>' + esc(q.area) + '</b></span></div>' +
       '<div class="chips">' + tecs.map(function (t) { return '<span class="chip y">' + esc(t) + '</span>'; }).join('') + notas.slice(0, 6).map(function (n) { return '<span class="chip">Nota PR ' + esc(n) + '</span>'; }).join('') + (notas.length > 6 ? '<span class="chip">+' + (notas.length - 6) + ' notas</span>' : '') + '</div>' +
-      (rel.length ? '<div style="font-size:12.5px;color:var(--ink-2);display:flex;flex-wrap:wrap;gap:6px;align-items:center">Registros relacionados (contêm “' + esc(q.nome) + '”): ' + rel.map(function (o) { return '<button class="tab" data-rel="' + esc(o.key) + '"><span class="dot st-' + o.atual + '" style="display:inline-block;width:8px;height:8px;margin-right:5px"></span>' + esc(o.titulo.length > 48 ? o.titulo.slice(0, 46) + '…' : o.titulo) + '</button>'; }).join('') + '</div>' : '') +
+      (rel.length ? '<div style="font-size:12.5px;color:var(--ink-2);display:flex;flex-wrap:wrap;gap:6px;align-items:center">Registros relacionados (contêm “' + esc(q.nome) + '”): ' + rel.map(function (o) { return '<button class="tab" data-rel="' + esc(o.key) + '"><span class="dot st-' + o.atual + '"' + codAttr(o.atualCod).replace('style="', 'style="display:inline-block;width:8px;height:8px;margin-right:5px;') + '></span>' + esc(o.titulo.length > 48 ? o.titulo.slice(0, 46) + '…' : o.titulo) + '</button>'; }).join('') + '</div>' : '') +
       (outrosNomes.length ? '<div style="font-size:12px;color:var(--ink-3)">Também registrado como: ' + esc(outrosNomes.slice(0, 5).join(' · ')) + (outrosNomes.length > 5 ? ' …' : '') + '</div>' : '') +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
       '<button class="btn sec" id="bLink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1"/><path d="M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1"/></svg>Copiar link</button>' +
@@ -1521,7 +1546,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     h += '<div class="kpis">' +
       kpi('Registros', q.n, avaliados.length + ' com condição avaliada') +
       kpi('Período', fmtMes(q.primeira.slice(0, 7)) + '–' + fmtMes(q.ultima.slice(0, 7)), Object.keys(q.meses).length + ' meses com registro') +
-      kpi('Meses com anomalia', q.mesesAnom, 'Pré-Alerta, Alerta ou Alarme') +
+      kpi('Meses com anomalia', q.mesesAnom, 'Pré-alerta, Alerta ou Alarme') +
       kpi('Notas PR', notas.length, notas.length ? 'última: ' + ultimaNota(q) : 'nenhuma registrada') +
       kpi('Reincidente desde', q.reincDesde ? fmtData(q.reincDesde, 'd') : '—', q.reincDesde ? 'conforme relatório' : 'não informado') +
       '</div>';
@@ -1531,7 +1556,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     h += '<div class="tl-tools"><div class="tabs" id="tecTabs"><button class="tab' + (!fichaEstado.tec ? ' on' : '') + '" data-t="">Todas as técnicas</button>' +
       Object.keys(tecsEv).map(function (t) { return '<button class="tab' + (fichaEstado.tec === t ? ' on' : '') + '" data-t="' + esc(t) + '">' + esc(t) + '</button>'; }).join('') + '</div>' +
       '<span style="flex:1"></span><label class="toggle"><input type="checkbox" id="tAnom"' + (fichaEstado.anom ? ' checked' : '') + '> Somente anomalias</label>' +
-      '<label class="toggle"><input type="checkbox" id="tNi"' + (fichaEstado.ni ? ' checked' : '') + '> Mostrar não inspecionados</label></div><div id="tl"></div>';
+      '<label class="toggle"><input type="checkbox" id="tNi"' + (fichaEstado.ni ? ' checked' : '') + '> Mostrar sem inspeção (5–13, X, R)</label></div><div id="tl"></div>';
     main.innerHTML = h;
     renderTimeline();
     $('#bLink').onclick = function () { var u = location.href; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(function () { $('#bLink').lastChild.textContent = 'Link copiado!'; }, function () { prompt('Copie o link:', u); }); };
@@ -1555,10 +1580,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     var ini = ks[0], fim = M.ultimoMes > ks[ks.length - 1] ? M.ultimoMes : ks[ks.length - 1], h = '', ano = '';
     for (var k = ini; k <= fim; k = addMes(k, 1)) {
       var s = q.meses[k], y = k.slice(0, 4);
-      h += '<div class="hm"><div class="y">' + (y !== ano ? y : '') + '</div><div class="c' + (s ? ' st-' + s : '') + '" data-ym="' + k + '" role="img" aria-label="' + fmtMes(k) + ': ' + (s ? S[s].label : 'sem registro') + '"></div><div class="m">' + MES[+k.slice(5) - 1].charAt(0).toUpperCase() + MES[+k.slice(5) - 1].slice(1, 3) + '</div></div>';
+      h += '<div class="hm"><div class="y">' + (y !== ano ? y : '') + '</div><div class="c' + (s ? ' st-' + s + '"' + codAttr(q.mesesCod[k]) : '"') + ' data-ym="' + k + '" role="img" aria-label="' + fmtMes(k) + ': ' + (s ? esc(codRot(q.mesesCod[k])) : 'sem registro') + '"></div><div class="m">' + MES[+k.slice(5) - 1].charAt(0).toUpperCase() + MES[+k.slice(5) - 1].slice(1, 3) + '</div></div>';
       ano = y;
     }
-    return '<div class="heat-grid">' + h + '</div><div class="legend">' + ORDEM_ST.map(function (s) { return '<span class="st-' + s + '"><i></i>' + S[s].label + '</span>'; }).join('') + '<span><i style="background:var(--surface-2);border:1px dashed var(--line-2)"></i>Sem registro</span></div>';
+    var usados = {}; ks.forEach(function (k) { usados[q.mesesCod[k]] = 1; });
+    return '<div class="heat-grid">' + h + '</div><div class="legend">' + legendaCod(usados) + '<span><i style="background:var(--surface-2);border:1px dashed var(--line-2)"></i>Sem registro</span></div>';
   }
 
   var tip = null;
@@ -1566,7 +1592,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     var evs = q.ev.filter(function (e) { return e.data && e.data.slice(0, 7) === ym; });
     var h = '<b>' + esc(fmtMesLongo(ym)) + '</b>';
     if (!evs.length) h += '<br>Sem registro neste mês';
-    evs.slice(0, 6).forEach(function (e) { h += '<br>● ' + esc(S[e.st].label + (e.stDet ? ' (' + e.stDet + ')' : '') + ' — ' + e.tec); });
+    evs.slice(0, 6).forEach(function (e) { h += '<br>● ' + esc(codRot(e.cod) + (e.stDet && e.stDet !== codInfo(e.cod).nome && !/^(?:[5-9]|1[0-3]|X|R)$/.test(e.cod) ? ' (' + e.stDet + ')' : '') + ' — ' + e.tec); });
     if (evs.length > 6) h += '<br>+' + (evs.length - 6) + ' registros';
     mostrarTip(h, ev);
   }
@@ -1602,19 +1628,19 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       return true;
     });
     var ocultos = q.ev.filter(function (e) { return S[e.st].sev === 0; }).length;
-    $('#tlCount').textContent = evs.length + ' de ' + q.ev.length + ' registros' + (!fichaEstado.ni && ocultos ? ' · ' + ocultos + ' não inspecionados ocultos' : '');
+    $('#tlCount').textContent = evs.length + ' de ' + q.ev.length + ' registros' + (!fichaEstado.ni && ocultos ? ' · ' + ocultos + ' sem inspeção (5–13, X, R) ocultos' : '');
     var h = '', mes = null;
     evs.forEach(function (e) {
       var m = e.data ? e.data.slice(0, 7) : 'sem';
       if (m !== mes) { mes = m; h += '<div class="tl-month" id="m-' + m + '">' + (m === 'sem' ? 'Sem data' : esc(fmtMesLongo(m))) + '</div>'; }
       var compact = e.fonte === 'historico' || (soRota(e) && !e.info);
-      var hd = '<div class="hd"><span class="dt">' + esc(fmtData(e.data, e.prec)) + '</span>' + badge(e.st, e.stDet) + '<span class="chip">' + esc(e.tec) + '</span>' +
-        (e.nota ? '<span class="chip y">Nota PR ' + esc(e.nota) + '</span>' : '') + (e.crit && !/n[aã]o identificada/i.test(e.crit) && e.crit.toUpperCase() !== S[e.st].label.toUpperCase() ? '<span class="chip">Criticidade: ' + esc(e.crit) + '</span>' : '') + '</div>';
+      var hd = '<div class="hd"><span class="dt">' + esc(fmtData(e.data, e.prec)) + '</span>' + badge(e.cod, e.stDet) + '<span class="chip">' + esc(e.tec) + '</span>' +
+        (e.nota ? '<span class="chip y">Nota PR ' + esc(e.nota) + '</span>' : '') + (e.crit && !/n[aã]o identificada/i.test(e.crit) && e.crit.toUpperCase() !== codInfo(e.cod).nome.toUpperCase() && e.crit.toUpperCase() !== S[e.st].label.toUpperCase() ? '<span class="chip">Criticidade: ' + esc(e.crit) + '</span>' : '') + '</div>';
       if (compact) {
-        h += '<div class="card ev compact st-' + e.st + '"><div class="bar"></div><div class="body">' + hd + '<div class="ft">' + (e.fonte === 'historico' ? 'Histórico da rota citado em ' : '') + linkPDF(e) + '</div></div></div>';
+        h += '<div class="card ev compact st-' + e.st + '"' + codAttr(e.cod) + '><div class="bar"></div><div class="body">' + hd + '<div class="ft">' + (e.fonte === 'historico' ? 'Histórico da rota citado em ' : '') + linkPDF(e) + '</div></div></div>';
         return;
       }
-      h += '<div class="card ev st-' + e.st + '"><div class="bar"></div><div class="body">' + hd +
+      h += '<div class="card ev st-' + e.st + '"' + codAttr(e.cod) + '><div class="bar"></div><div class="body">' + hd +
         (e.sit && !soRota(e) ? '<div><div class="lbl">Situação</div><div class="txt">' + esc(e.sit) + '</div></div>' : '') +
         (e.rec ? '<div class="rec"><div class="lbl">Recomendação</div><div class="txt">' + esc(e.rec) + '</div></div>' : '') +
         (e.info ? '<details><summary>Informações complementares</summary><div>' + esc(e.info) + '</div></details>' : '') +
@@ -1627,7 +1653,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   function exportar(q) {
     var linhas = q.ev.map(function (e) {
-      return { 'Equipamento': q.nome, 'Local de instalação': q.loc, 'Unidade': q.unidade, 'Área': q.area, 'Data': e.data || '', 'Precisão da data': e.prec === 'd' ? 'Dia' : 'Mês', 'Condição': S[e.st].label, 'Detalhe da condição': e.stDet,
+      return { 'Equipamento': q.nome, 'Local de instalação': q.loc, 'Unidade': q.unidade, 'Área': q.area, 'Data': e.data || '', 'Precisão da data': e.prec === 'd' ? 'Dia' : 'Mês', 'Código': e.cod || '', 'Condição': codInfo(e.cod).nome, 'Detalhe da condição': e.stDet,
         'Técnica': e.tec, 'Situação': e.sit, 'Recomendação': e.rec, 'Nota PR': e.nota, 'Reincidente desde': e.reinc, 'Data da coleta': e.coleta, 'Informações complementares': e.info, 'Arquivo de origem': e.arq };
     });
     var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(linhas), 'Histórico');
