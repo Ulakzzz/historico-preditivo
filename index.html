@@ -122,7 +122,7 @@ h2.sec .r{margin-left:auto;font-weight:400;font-size:12px;color:var(--ink-3);dis
 .hm .y{font-size:11px;color:var(--ink-3);height:14px}
 .hm .c{border-radius:5px;background:var(--surface-2);border:1px dashed var(--line-2);cursor:default;position:relative}
 .hm .c[class*="st-"]{background:var(--c);border:0;cursor:pointer}
-.hm .c.st-NC{background:var(--s-nc)}
+
 .hm .c:hover{outline:2px solid var(--ink);outline-offset:1px}
 .hm .m{font-size:10.5px;color:var(--ink-3)}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--ink-2);margin-top:10px}
@@ -1556,7 +1556,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     h += '<div class="tl-tools"><div class="tabs" id="tecTabs"><button class="tab' + (!fichaEstado.tec ? ' on' : '') + '" data-t="">Todas as técnicas</button>' +
       Object.keys(tecsEv).map(function (t) { return '<button class="tab' + (fichaEstado.tec === t ? ' on' : '') + '" data-t="' + esc(t) + '">' + esc(t) + '</button>'; }).join('') + '</div>' +
       '<span style="flex:1"></span><label class="toggle"><input type="checkbox" id="tAnom"' + (fichaEstado.anom ? ' checked' : '') + '> Somente anomalias</label>' +
-      '<label class="toggle"><input type="checkbox" id="tNi"' + (fichaEstado.ni ? ' checked' : '') + '> Mostrar sem inspeção (5–13, X, R)</label></div><div id="tl"></div>';
+      '<label class="toggle"><input type="checkbox" id="tNi"' + (fichaEstado.ni ? ' checked' : '') + '> Mostrar sem inspeção (5–13, X, R, não monitorado)</label></div><div id="tl"></div>';
     main.innerHTML = h;
     renderTimeline();
     $('#bLink').onclick = function () { var u = location.href; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(function () { $('#bLink').lastChild.textContent = 'Link copiado!'; }, function () { prompt('Copie o link:', u); }); };
@@ -1628,7 +1628,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       return true;
     });
     var ocultos = q.ev.filter(function (e) { return S[e.st].sev === 0; }).length;
-    $('#tlCount').textContent = evs.length + ' de ' + q.ev.length + ' registros' + (!fichaEstado.ni && ocultos ? ' · ' + ocultos + ' sem inspeção (5–13, X, R) ocultos' : '');
+    $('#tlCount').textContent = evs.length + ' de ' + q.ev.length + ' registros' + (!fichaEstado.ni && ocultos ? ' · ' + ocultos + ' sem inspeção (5–13, X, R, não monitorado) ocultos' : '');
     var h = '', mes = null;
     evs.forEach(function (e) {
       var m = e.data ? e.data.slice(0, 7) : 'sem';
@@ -1682,7 +1682,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       (FS.root ? '<button class="btn sec" id="dRelPasta">Recarregar da pasta</button>' : '') +
       (temFS && !noVisualizadorSP ? '<button class="btn sec" id="dPasta">' + (FS.root ? 'Trocar pasta' : 'Abrir pasta sincronizada') + '</button>' : '') +
       '<button class="btn sec" id="dClear">Limpar cache</button></div>' +
-      '<p style="color:var(--ink-3);font-size:12px;margin-top:12px">As datas seguem esta prioridade: mês da rota → data da coleta (quando no mesmo mês do relatório) → data/mês no nome do arquivo → data do e-mail. A condição “Normal” vem das tabelas de rota; “Não inspecionado” agrupa códigos como sem produção, inacessível, reserva e não previsto.</p>';
+      '<p style="color:var(--ink-3);font-size:12px;margin-top:12px">As datas seguem esta prioridade: mês da rota → data da coleta (quando no mesmo mês do relatório) → data/mês no nome do arquivo → data do e-mail. A condição “Normal” vem das tabelas de rota; as cores e os códigos (1–13, X, R) são os das planilhas de controle; “Sem classificação” é o laudo sem código identificável.</p>';
     $('#dlgB').innerHTML = h; $('#dlg').showModal();
     var r = $('#dReload'); if (r) r.onclick = function () { $('#dlg').close(); idb.clear().then(carregarSharePoint).catch(erroSP); };
     var og = $('#dOrg'); if (og) og.onclick = organizar;
