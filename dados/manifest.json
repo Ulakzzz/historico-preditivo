@@ -1,5 +1,5 @@
 {
- "atualizado": "2026-11-25T22:11:18+00:00",
+ "atualizado": "2026-11-27T22:13:00+00:00",
  "arquivos": [
   {
    "nome": "Padronizacao.xlsx",
@@ -30,6 +30,12 @@
    "arquivo": "Relatorios_extraidos_2026-11-25_2211.xlsx.enc",
    "tipo": "dados",
    "sha": "f3b08d5858a2e50b"
+  },
+  {
+   "nome": "Relatorios_extraidos_2026-11-27_2212.xlsx",
+   "arquivo": "Relatorios_extraidos_2026-11-27_2212.xlsx.enc",
+   "tipo": "dados",
+   "sha": "5ceeef81b5394e99"
   }
  ]
 }
